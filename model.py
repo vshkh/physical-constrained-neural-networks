@@ -3,11 +3,12 @@
 from typing import Optional
 import torch
 import torch.nn as nn
+from constraints.noise import Noise
 
 # Define a complex activation function:
 # - Alternatives include: split activation, a real and complex ReLu (2 performed)
-# -- Modulus-based activation, preserving phase and modifying amplitude.
-# -- Physics: Saturable absorber model or Kerr linearities can inspire complex systems; TPA
+# - Modulus-based activation, preserving phase and modifying amplitude.
+# - Physics: Saturable absorber model or Kerr linearities can inspire complex systems; TPA
 
 def complex_activation(z: torch.Tensor) -> torch.Tensor:
     amp = torch.abs(z)
@@ -37,14 +38,24 @@ class LinearRC(nn.Module):
         return out
 
 class TinyNet(nn.Module):
-    def __init__(self, use_complex: bool = False, width: int = 256):
+    def __init__(self,
+                 mode_noise: str = "off", 
+                 noise_sigma_add: float = 0.0,
+                 noise_sigma_mult: float = 0.0,
+                 use_complex: bool = False, 
+                 width: int = 256):
         super().__init__()
+
+        # Flag for complex:
         self.use_complex = use_complex
         in_dim, out_dim = 784, 10 # 784 = 28^2, 10 (0-9 classes)
 
         # Layers:
         self.l1 = LinearRC(in_dim, width, use_complex)
         self.l2 = LinearRC(width, out_dim, use_complex)
+
+        # Noise:
+        self.noise = Noise(mode_noise, noise_sigma_add, noise_sigma_mult)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Flatten the input image:
@@ -58,6 +69,9 @@ class TinyNet(nn.Module):
         
         # First transform
         z = self.l1(x)
+
+        # Apply noise:
+        z = self.noise(z)
         
         # Activation, either complex or real
         z = complex_activation(z) if self.use_complex else torch.relu(z)

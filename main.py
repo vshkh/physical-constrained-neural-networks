@@ -34,7 +34,7 @@ def main():
     # Manual complex flag:
     use_complex = False
 
-    model = TinyNet(use_complex, width=args.width).to(device)
+    model = TinyNet("both", 0.05, 0.05, use_complex=use_complex, width=args.width).to(device)
     first_param = next(model.parameters())
     print(f"Mode: {'COMPLEX' if use_complex else 'REAL'} "
           f"| Param dtype: {first_param.dtype} "
