@@ -10,11 +10,15 @@ class Noise(nn.Module):
         self.mode = mode
         self.sigma_add = sigma_add
         self.sigma_mul = sigma_mul
-        #self.complex_mode = complex_mode
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.mode == "off" or not self.training or x.is_complex():
             return x
+        
+        # inside Noise.forward
+        if self.training:
+            if torch.rand(()) < 0.001:
+                print(f"[NOISE ACTIVE] mode={self.mode}, add={self.sigma_add}, mul={self.sigma_mul}, x.mean={x.mean().item():.3f}, x.std={x.std().item():.3f}")
 
         if self.mode in ("add", "both"):
             noise = torch.randn_like(x) * self.sigma_add

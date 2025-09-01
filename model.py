@@ -4,6 +4,8 @@ from typing import Optional
 import torch
 import torch.nn as nn
 from constraints.noise import Noise
+from constraints.quantization import ADC
+
 
 # Define a complex activation function:
 # - Alternatives include: split activation, a real and complex ReLu (2 performed)
@@ -40,8 +42,13 @@ class LinearRC(nn.Module):
 class TinyNet(nn.Module):
     def __init__(self,
                  mode_noise: str = "off", 
+                 mode_quant: str = "off",
                  noise_sigma_add: float = 0.0,
                  noise_sigma_mult: float = 0.0,
+                 act_bits: int = 8,
+                 adc_in_range=(0.0, 1.0),
+                 adc_out_range=(0.0, 16.0),
+                 adc_apply_in_eval: bool = False,
                  use_complex: bool = False, 
                  width: int = 256):
         super().__init__()
@@ -56,12 +63,20 @@ class TinyNet(nn.Module):
 
         # Noise:
         self.noise = Noise(mode_noise, noise_sigma_add, noise_sigma_mult)
+
+        # ADCs at entry/exit
+        self.adc_in = ADC(act_bits, adc_in_range[0], adc_in_range[1], adc_apply_in_eval) if mode_quant in ("act","both") else None
+        self.adc_out = ADC(act_bits, adc_out_range[0], adc_out_range[1], adc_apply_in_eval) if mode_quant in ("act","both") else None
+
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Flatten the input image:
         # - x.size(0) is the batch size
         # - -1 is inferred from other dimensions
         x = x.view(x.size(0), -1)
+
+        if self.adc_in is not None:
+            x = self.adc_in(x)
 
         # Convert to complex if set to use_complex
         if self.use_complex and x.dtype != torch.complex64:
@@ -82,6 +97,9 @@ class TinyNet(nn.Module):
         # Convert to real logits if complex via abs
         if self.use_complex:
             z = torch.abs(z)**2
+
+        if self.adc_out is not None:
+            z = self.adc_out(z)
 
         return z
 
