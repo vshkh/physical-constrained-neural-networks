@@ -5,6 +5,7 @@ from data import get_mnist_loaders
 from model import TinyNet
 from train import train_one_epoch, evaluate
 from utils import set_seed, device_auto
+from constraints.drift import DriftController
 
 # =========================
 # Manual "flags" (edit me)
@@ -30,6 +31,10 @@ ACT_BITS = 8
 ADC_APPLY_IN_EVAL = False           # True => apply ADC during eval (hardware-mode)
 ADC_IN_RANGE = (0.0, 1.0)           # MNIST after ToTensor() is in [0,1]
 ADC_OUT_RANGE = (0.0, 16.0)         # roomy logit range; adjust later if desired
+
+# DRIFT (slow miscalibration)
+MODE_DRIFT = "epoch"      # "off" | "epoch" | "batch"
+DRIFT_ETA  = 1e-4       # start tiny; we’ll tune this after first run
 
 # =========================
 # Helpers
@@ -59,6 +64,9 @@ def main():
         width=WIDTH,
     ).to(device)
 
+    drift = DriftController(eta=DRIFT_ETA, mode=MODE_DRIFT)
+    drift.attach(model)  # does nothing yet, but keeps the pattern stable
+
     first_param = next(model.parameters())
     print(
         f"Mode: {'COMPLEX' if USE_COMPLEX else 'REAL'} "
@@ -74,6 +82,7 @@ def main():
     # Train/Eval loop
     for epoch in range(1, EPOCHS + 1):
         train_loss = train_one_epoch(model, train_loader, optimizer, device)
+        drift.step_epoch(model)
         test_loss, test_acc = evaluate(model, test_loader, device)
         print(
             f"epoch {epoch:02d} | "

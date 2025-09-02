@@ -27,6 +27,7 @@ class ADC(nn.Module):
         super().__init__()
         assert num_bits >= 2
         self.num_bits = int(num_bits)
+
         self.register_buffer('xmin', torch.tensor(xmin))
         self.register_buffer('xmax', torch.tensor(xmax))
         self.apply_in_eval = bool(apply_in_eval)
