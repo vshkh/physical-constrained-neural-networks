@@ -290,9 +290,9 @@ if __name__ == "__main__":
         noise_sigma_add=1e-3,
         noise_sigma_mult=0.0,
         noise_apply_in_eval=True,         # hardware-style noise  :contentReference[oaicite:13]{index=13}
-        mode_quant="both",
+        mode_quant="off",
         act_bits=8,
-        adc_apply_in_eval=True,           # hardware-style ADC     :contentReference[oaicite:14]{index=14}
+        adc_apply_in_eval=False,           # hardware-style ADC     :contentReference[oaicite:14]{index=14}
         adc_in_range=(0.0, 1.0),
         adc_out_range=(-5.0, 5.0),
         mode_drift="off",
