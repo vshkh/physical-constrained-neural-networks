@@ -45,6 +45,8 @@ class TinyNet(nn.Module):
                  mode_quant: str = "off",
                  noise_sigma_add: float = 0.0,
                  noise_sigma_mult: float = 0.0,
+                 noise_apply_in_eval: bool = False,
+                 noise_sigma_phase: float = 0.0,
                  act_bits: int = 8,
                  adc_in_range=(0.0, 1.0),
                  adc_out_range=(0.0, 16.0),
@@ -62,7 +64,14 @@ class TinyNet(nn.Module):
         self.l2 = LinearRC(width, out_dim, use_complex)
 
         # Noise:
-        self.noise = Noise(mode_noise, noise_sigma_add, noise_sigma_mult)
+        self.noise = Noise(
+        mode_noise,
+        noise_sigma_add,
+        noise_sigma_mult,
+        apply_in_eval=noise_apply_in_eval,       
+        complex_mode=self.use_complex,
+        sigma_phase=self.noise_sigma_phase,              # keep 0.0 to start; we can sweep later
+    )
 
         # ADCs at entry/exit
         self.adc_in = ADC(act_bits, adc_in_range[0], adc_in_range[1], adc_apply_in_eval) if mode_quant in ("act","both") else None

@@ -25,6 +25,9 @@ MODE_QUANT = "act"                  # "off" | "act" | "both"  (ADC at input/outp
 # Noise params
 NOISE_SIGMA_ADD = 0.0               # std-dev for additive noise
 NOISE_SIGMA_MULT = 0.0              # std-dev for multiplicative noise
+NOISE_APPLY_IN_EVAL = False         # True => apply noise during eval (hardware-mode)
+NOISE_SIGMA_PHASE    = 0.0
+
 
 # ADC (activation quantization) params
 ACT_BITS = 8
@@ -34,7 +37,7 @@ ADC_OUT_RANGE = (0.0, 16.0)         # roomy logit range; adjust later if desired
 
 # DRIFT (slow miscalibration)
 MODE_DRIFT = "epoch"      # "off" | "epoch" | "batch"
-DRIFT_ETA  = 1e-4       # start tiny; we’ll tune this after first run
+DRIFT_ETA  = 2       # start tiny; we’ll tune this after first run
 
 # =========================
 # Helpers
@@ -56,6 +59,8 @@ def main():
         mode_quant=MODE_QUANT,
         noise_sigma_add=NOISE_SIGMA_ADD,
         noise_sigma_mult=NOISE_SIGMA_MULT,
+        noise_apply_in_eval=NOISE_APPLY_IN_EVAL,
+        noise_sigma_phase=NOISE_SIGMA_PHASE,
         act_bits=ACT_BITS,
         adc_in_range=ADC_IN_RANGE,
         adc_out_range=ADC_OUT_RANGE,
