@@ -6,7 +6,6 @@ import torch.nn as nn
 from constraints.noise import Noise
 from constraints.quantization import ADC
 
-
 # Define a complex activation function:
 # - Alternatives include: split activation, a real and complex ReLu (2 performed)
 # - Modulus-based activation, preserving phase and modifying amplitude.
@@ -24,14 +23,23 @@ class LinearRC(nn.Module):
 
         # Use this as a flag to determine if the layers are complex or not.
         self.use_complex = use_complex
+        # model.py -> LinearRC.__init__
         dtype = torch.complex64 if use_complex else torch.float32
-        
-        self.W = nn.Parameter(torch.randn(in_features, out_features, dtype=dtype))
+        fan_in = in_features
+        if use_complex:
+            # draw real/imag ~ N(0, 1/fan_in) so E|Wz|^2 stays ~ const
+            Wr = torch.randn(in_features, out_features) / (fan_in ** 0.5)
+            Wi = torch.randn(in_features, out_features) / (fan_in ** 0.5)
+            self.W = nn.Parameter(torch.complex(Wr, Wi).to(dtype))
+        else:
+            W = torch.randn(in_features, out_features) / (fan_in ** 0.5)
+            self.W = nn.Parameter(W.to(dtype))
+
         if bias:
-            self.b = nn.Parameter(torch.randn(out_features, dtype=dtype))
+            self.b = nn.Parameter(torch.zeros(out_features, dtype=dtype))
         else:
             self.register_parameter('b', None)
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # @ operator does matmul using NumPy
         out = x @ self.W
@@ -70,7 +78,7 @@ class TinyNet(nn.Module):
         noise_sigma_mult,
         apply_in_eval=noise_apply_in_eval,       
         complex_mode=self.use_complex,
-        sigma_phase=self.noise_sigma_phase,              # keep 0.0 to start; we can sweep later
+        sigma_phase=noise_sigma_phase,              # keep 0.0 to start; we can sweep later
     )
 
         # ADCs at entry/exit

@@ -1,6 +1,6 @@
 # main.py
-import torch
 
+import torch
 from data import get_mnist_loaders
 from model import TinyNet
 from train import train_one_epoch, evaluate
@@ -18,14 +18,14 @@ SEED = 42
 SAVE_PATH = ""   # e.g., "tinynet_mnist.pt" or leave ""
 
 # Core modes
-USE_COMPLEX = False                 # complex pipeline toggle
-MODE_NOISE = "off"                  # "off" | "add" | "mul" | "addmul"
-MODE_QUANT = "act"                  # "off" | "act" | "both"  (ADC at input/output)
+USE_COMPLEX = True                 # complex pipeline toggle
+MODE_NOISE = "add"                  # "off" | "add" | "mul" | "both"
+MODE_QUANT = "off"                  # "off" | "act" | "both"  (ADC at input/output)
 
 # Noise params
-NOISE_SIGMA_ADD = 0.0               # std-dev for additive noise
+NOISE_SIGMA_ADD = 1e-3              # std-dev for additive noise
 NOISE_SIGMA_MULT = 0.0              # std-dev for multiplicative noise
-NOISE_APPLY_IN_EVAL = False         # True => apply noise during eval (hardware-mode)
+NOISE_APPLY_IN_EVAL = True         # True => apply noise during eval (hardware-mode)
 NOISE_SIGMA_PHASE    = 0.0
 
 
@@ -36,7 +36,7 @@ ADC_IN_RANGE = (0.0, 1.0)           # MNIST after ToTensor() is in [0,1]
 ADC_OUT_RANGE = (0.0, 16.0)         # roomy logit range; adjust later if desired
 
 # DRIFT (slow miscalibration)
-MODE_DRIFT = "epoch"      # "off" | "epoch" | "batch"
+MODE_DRIFT = "off"      # "off" | "epoch" | "batch"
 DRIFT_ETA  = 2       # start tiny; we’ll tune this after first run
 
 # =========================
@@ -78,7 +78,9 @@ def main():
         f"| Param dtype: {first_param.dtype} "
         f"| Params: {count_params(model):,} "
         f"| Noise: {MODE_NOISE}(add={NOISE_SIGMA_ADD}, mul={NOISE_SIGMA_MULT}) "
-        f"| Quant: {MODE_QUANT}(A{ACT_BITS}, Eval={'Y' if ADC_APPLY_IN_EVAL else 'N'})"
+        f"| Quant: {MODE_QUANT}(A{ACT_BITS}" 
+        f"| ADC_Eval={'Y' if ADC_APPLY_IN_EVAL else 'N'})"
+        f"| Noise_Eval={'Y' if NOISE_APPLY_IN_EVAL else 'N'})"
     )
 
     # Optimizer
