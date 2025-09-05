@@ -1,7 +1,7 @@
 # main.py
 
 import torch
-from data import get_mnist_loaders
+from data import get_mnist_loaders, infer_in_dim
 from model import TinyNet
 from train import train_one_epoch, evaluate
 from utils import set_seed, device_auto
@@ -15,12 +15,14 @@ BATCH_SIZE = 128
 LR = 1e-3
 WIDTH = 256
 SEED = 42
+DATASET = "mnist" #  mnist | fashion | cifar10
 SAVE_PATH = ""   # e.g., "tinynet_mnist.pt" or leave ""
 
 # Core modes
-USE_COMPLEX = True                 # complex pipeline toggle
-MODE_NOISE = "add"                  # "off" | "add" | "mul" | "both"
-MODE_QUANT = "off"                  # "off" | "act" | "both"  (ADC at input/output)
+USE_COMPLEX = True                   # complex pipeline toggle
+MODE_NOISE = "add"                   # "off" | "add" | "mul" | "both"
+MODE_QUANT = "both"                  # "off" | "act" | "both"  (ADC at input/output)
+MODE_DRIFT = "epoch"                 # "off" | "epoch" | "batch"
 
 # Noise params
 NOISE_SIGMA_ADD = 1e-3              # std-dev for additive noise
@@ -31,13 +33,14 @@ NOISE_SIGMA_PHASE    = 0.0
 
 # ADC (activation quantization) params
 ACT_BITS = 8
-ADC_APPLY_IN_EVAL = False           # True => apply ADC during eval (hardware-mode)
+ADC_APPLY_IN_EVAL = True           # True => apply ADC during eval (hardware-mode)
 ADC_IN_RANGE = (0.0, 1.0)           # MNIST after ToTensor() is in [0,1]
-ADC_OUT_RANGE = (0.0, 16.0)         # roomy logit range; adjust later if desired
+ADC_OUT_RANGE = (-5.0, 5.0)         # roomy logit range; adjust later if desired
 
 # DRIFT (slow miscalibration)
-MODE_DRIFT = "off"      # "off" | "epoch" | "batch"
-DRIFT_ETA  = 2       # start tiny; we’ll tune this after first run
+DRIFT_ETA  = 1e-5       # start tiny; we’ll tune this after first run
+DRIFT_BIAS = True
+DRIFT_MULTIPLICATIVE = False
 
 # =========================
 # Helpers
@@ -52,7 +55,7 @@ def main():
 
     # Data
     train_loader, test_loader = get_mnist_loaders(batch_size=BATCH_SIZE, num_workers=2)
-
+    in_dim = infer_in_dim(DATASET)
     # Model
     model = TinyNet(
         mode_noise=MODE_NOISE,
@@ -69,8 +72,12 @@ def main():
         width=WIDTH,
     ).to(device)
 
-    drift = DriftController(eta=DRIFT_ETA, mode=MODE_DRIFT)
-    drift.attach(model)  # does nothing yet, but keeps the pattern stable
+    drift = DriftController(
+        eta=DRIFT_ETA, mode=MODE_DRIFT, 
+        multiplicative=DRIFT_MULTIPLICATIVE, 
+        bias=DRIFT_BIAS
+    )
+    drift.attach(model)
 
     first_param = next(model.parameters())
     print(
@@ -78,9 +85,10 @@ def main():
         f"| Param dtype: {first_param.dtype} "
         f"| Params: {count_params(model):,} "
         f"| Noise: {MODE_NOISE}(add={NOISE_SIGMA_ADD}, mul={NOISE_SIGMA_MULT}) "
-        f"| Quant: {MODE_QUANT}(A{ACT_BITS}" 
-        f"| ADC_Eval={'Y' if ADC_APPLY_IN_EVAL else 'N'})"
-        f"| Noise_Eval={'Y' if NOISE_APPLY_IN_EVAL else 'N'})"
+        f"| Quant: {MODE_QUANT}(A{ACT_BITS}) "
+        f"| Drift: {MODE_DRIFT}(eta={DRIFT_ETA}, mul={DRIFT_MULTIPLICATIVE}) "
+        f"| ADC_Eval={'Y' if ADC_APPLY_IN_EVAL else 'N'} "
+        f"| Noise_Eval={'Y' if NOISE_APPLY_IN_EVAL else 'N'}"
     )
 
     # Optimizer
@@ -88,7 +96,7 @@ def main():
 
     # Train/Eval loop
     for epoch in range(1, EPOCHS + 1):
-        train_loss = train_one_epoch(model, train_loader, optimizer, device)
+        train_loss = train_one_epoch(model, train_loader, optimizer, device, drift_controller=drift)
         drift.step_epoch(model)
         test_loss, test_acc = evaluate(model, test_loader, device)
         print(

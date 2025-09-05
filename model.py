@@ -11,9 +11,10 @@ from constraints.quantization import ADC
 # - Modulus-based activation, preserving phase and modifying amplitude.
 # - Physics: Saturable absorber model or Kerr linearities can inspire complex systems; TPA
 
-def complex_activation(z: torch.Tensor) -> torch.Tensor:
+def complex_activation(z: torch.Tensor, eps : float = 1e-6) -> torch.Tensor:
     amp = torch.abs(z)
-    return z * torch.tanh(amp)
+    scale = torch.tanh(amp) / (amp + eps)
+    return z * scale
 
 # Defining a linear layer capable of both real and complex parameters:
 
@@ -60,16 +61,17 @@ class TinyNet(nn.Module):
                  adc_out_range=(0.0, 16.0),
                  adc_apply_in_eval: bool = False,
                  use_complex: bool = False, 
-                 width: int = 256):
+                 width: int = 256,
+                 in_dim: int = 784,
+                 num_classes: int = 10):
         super().__init__()
 
         # Flag for complex:
         self.use_complex = use_complex
-        in_dim, out_dim = 784, 10 # 784 = 28^2, 10 (0-9 classes)
 
         # Layers:
         self.l1 = LinearRC(in_dim, width, use_complex)
-        self.l2 = LinearRC(width, out_dim, use_complex)
+        self.l2 = LinearRC(width, num_classes, use_complex)
 
         # Noise:
         self.noise = Noise(

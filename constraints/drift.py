@@ -14,16 +14,17 @@ from model import LinearRC
 - as it heats up; hence, walking away from their optimized values unless recalibrated. 
 """
 class DriftController:
-    # Minimal drift: per call, nudge LinearRC weights/biases by small Gaussian noise
-
-    def __init__(self, eta: float = 0.0, mode: str = "off"):
+    def __init__(self, eta=0.0, mode="off", drift_bias=True, multiplicative=False):
         assert mode in ("off", "epoch", "batch")
         self.eta = eta
         self.mode = mode
+        self.drift_bias = drift_bias
+        self.multiplicative = multiplicative
     
     @torch.no_grad()
     def attach(self, model: nn.Module):
-        pass 
+        # collect handles to all LinearRC layer
+        self._targets = [m for m in model.modules() if isinstance(m, LinearRC)] 
 
     @torch.no_grad()
     def step_epoch(self, model: nn.Module):
@@ -38,11 +39,16 @@ class DriftController:
         self._apply_gaussian_nudge(model)
 
     @torch.no_grad()
-    def _apply_gaussian_nudge(self, model: nn.Module):
-        # For each LinearRC, do: W <- W + eta * N(0,1), b likewise if present.
+    def _apply_gaussian_nudge(self, model):
         for m in model.modules():
             if isinstance(m, LinearRC):
                 if m.W is not None:
-                    m.W.add_(torch.randn_like(m.W) * self.eta)
-                if m.b is not None:
-                    m.b.add_(torch.randn_like(m.b) * self.eta)
+                    if self.multiplicative:
+                        m.W.mul_(1.0 + torch.randn_like(m.W) * self.eta)
+                    else:
+                        m.W.add_(torch.randn_like(m.W) * self.eta)
+                if m.b is not None and self.drift_bias:
+                    if self.multiplicative:
+                        m.b.mul_(1.0 + torch.randn_like(m.b) * self.eta)
+                    else:
+                        m.b.add_(torch.randn_like(m.b) * self.eta)
