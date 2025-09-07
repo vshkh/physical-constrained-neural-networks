@@ -23,8 +23,8 @@ class DriftController:
     
     @torch.no_grad()
     def attach(self, model: nn.Module):
-        # collect handles to all LinearRC layer
-        self._targets = [m for m in model.modules() if isinstance(m, LinearRC)] 
+        # collect handles to drift-enabled layers: LinearRC and Conv2d
+        self._targets = [m for m in model.modules() if isinstance(m, (LinearRC, nn.Conv2d))]
 
     @torch.no_grad()
     def step_epoch(self, model: nn.Module):
@@ -52,3 +52,14 @@ class DriftController:
                         m.b.mul_(1.0 + torch.randn_like(m.b) * self.eta)
                     else:
                         m.b.add_(torch.randn_like(m.b) * self.eta)
+            elif isinstance(m, nn.Conv2d):
+                if m.weight is not None:
+                    if self.multiplicative:
+                        m.weight.mul_(1.0 + torch.randn_like(m.weight) * self.eta)
+                    else:
+                        m.weight.add_(torch.randn_like(m.weight) * self.eta)
+                if m.bias is not None and self.drift_bias:
+                    if self.multiplicative:
+                        m.bias.mul_(1.0 + torch.randn_like(m.bias) * self.eta)
+                    else:
+                        m.bias.add_(torch.randn_like(m.bias) * self.eta)
